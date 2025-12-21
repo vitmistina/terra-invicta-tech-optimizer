@@ -20,7 +20,6 @@ This document breaks down the user-facing requirements for the Terra Invicta tec
 - **Acceptance criteria**
   - Cycle detection runs on load; errors are shown with the offending nodes/edges.
   - Missing references (dependencies that are not defined) are reported with node names.
-  - Projects must depend on at least one tech; violations are flagged as errors.
   - Validation results are visible in a banner or panel and block downstream planning until resolved.
 
 ## Graph exploration and filtering
