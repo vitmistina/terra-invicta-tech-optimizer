@@ -72,18 +72,10 @@ This document breaks down the user-facing requirements for the Terra Invicta tec
 - **So that** I get an optimal research path that matches Terra Invicta rules
 - **Acceptance criteria**
   - Three tech slots are always available; project slots range from one to three based on a user-controlled game stage parameter.
+  - For each tech and project slot, the player can contribute 0, 1, 2, or 3 "pips". Total research is then divided in proportional order. Example: 1 pip in tech slot A, 3 pips in tech slot B, 0 pips in tech slot C = 25 %, 75 %, 0 %
   - The scheduler respects dependencies, durations/costs, and current backlog order.
   - If a priority item is blocked by unmet prerequisites, the optimizer skips to the next available item without idling tech slots unnecessarily.
   - Output includes a turn-by-turn list of started and completed items with slot assignments.
-
-### US-08: Apply research speed and scenario parameters
-- **As a** player
-- **I want** to adjust research speed multipliers and slot counts
-- **So that** I can test different scenarios
-- **Acceptance criteria**
-  - Controls let me set research speed modifiers for techs and projects independently.
-  - Changing parameters triggers a re-run of the optimizer and updates all dependent views.
-  - A comparison indicator notes when results differ from the previous run.
 
 ## Progression insights
 
@@ -95,6 +87,7 @@ This document breaks down the user-facing requirements for the Terra Invicta tec
   - A stacked area or bar chart shows category proportions by turn or phase.
   - Hovering reveals category, active items, and cumulative totals for the selected turn.
   - Data updates when backlog or scenario parameters change.
+  - Cumulative view is also available
 
 ### US-10: Display slot utilization timeline
 - **As a** player
