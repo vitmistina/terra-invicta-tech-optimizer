@@ -35,6 +35,7 @@ class GraphValidator:
         result = ValidationResult()
         self._check_missing_references(result)
         self._check_cycles(result)
+        self._check_projects_depend_on_tech(result)
         return result
 
     def _check_missing_references(self, result: ValidationResult) -> None:
@@ -84,3 +85,25 @@ class GraphValidator:
         for node_id in self.nodes:
             if node_id not in visited:
                 dfs(node_id)
+
+    def _check_projects_depend_on_tech(self, result: ValidationResult) -> None:
+        tech_nodes = {node_id for node_id, node in self.nodes.items() if node.node_type is NodeType.TECH}
+
+        for node in self.nodes.values():
+            if node.node_type is not NodeType.PROJECT:
+                continue
+
+            if not node.prereqs:
+                result.errors.append(
+                    ValidationIssue(
+                        message="Projects must depend on at least one tech", nodes=[node.identifier]
+                    )
+                )
+                continue
+
+            if not any(prereq in tech_nodes for prereq in node.prereqs):
+                result.errors.append(
+                    ValidationIssue(
+                        message="Projects must depend on at least one tech", nodes=[node.identifier]
+                    )
+                )

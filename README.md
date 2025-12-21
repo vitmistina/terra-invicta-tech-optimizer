@@ -1,9 +1,24 @@
 # terra-invicta-tech-optimizer
-This project loads tech tree template file from the Terra Invicta game and lets the player select a backlog of priority technologies. It calculates optimum path through the Directed Acyclic Graph and provides stats on distribution amongst tech types.
+This project loads tech tree template file from the Terra Invicta game and lets the player explore the dependency graph, filter it, and curate a backlog of priority technologies.
+
+## Streamlit planning workspace
+
+Launch the interactive planner from the repository root:
+
+```bash
+uv run streamlit run main.py
+```
+
+The main page provides:
+
+- A validation gate that surfaces missing references, cycles, or project dependency gaps before any planning continues.
+- Category and completion filters that can either hide or de-emphasize nodes, plus a quick reset back to the full graph.
+- Backlog tools for adding/removing items and adjusting priority order; backlog entries are highlighted directly in the graph.
+- A graph explorer that highlights prerequisites and dependents for the focused node and offers a one-click backlog add.
 
 ## Input loading and validation
 
-The CLI in `main.py` loads tech and project definitions from the `inputs/` directory and validates the dependency graph. Supported formats are JSON, CSV, and TSV. Unsupported files are skipped with warnings so you can keep scratch files alongside the inputs without breaking the loader.
+The loader reads tech and project definitions from the `inputs/` directory. Supported formats are JSON, CSV, and TSV. Unsupported files are skipped with warnings so you can keep scratch files alongside the inputs without breaking the loader.
 
 Parsing rules:
 
@@ -17,11 +32,16 @@ Validation rules applied on load:
 - Cycles in the dependency graph are blocked and surfaced with the involved node IDs.
 - Projects must depend on at least one tech node.
 
-Run the loader and validator locally with:
+## Graph exploration and filtering helpers
 
-```bash
-uv run python main.py
-```
+The `GraphExplorer` utility in `terra_invicta_tech_optimizer/graph.py` prepares DAG data for interactive visualization. It:
+
+- Styles nodes based on type and category so techs and projects render distinctly.
+- Builds highlighted prerequisite/dependent chains when a node is selected for contextual focus.
+- Applies category, completion, and backlog filters that can either hide or de-emphasize nodes and edges.
+- Provides resettable filter defaults for returning to the full graph view.
+
+See `tests/test_graph_explorer.py` for examples of how to assemble a filtered graph view.
 
 ## Planning
 Detailed user stories and acceptance criteria for the Streamlit app live in [docs/user_stories.md](docs/user_stories.md).
