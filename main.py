@@ -61,6 +61,18 @@ def ensure_state(nodes):
         st.session_state.selected = None
 
 
+def get_explorer(nodes):
+    reload_token = st.session_state.get("reload_token", 0)
+    explorer_state = st.session_state.get("explorer")
+
+    if explorer_state and explorer_state.get("token") == reload_token:
+        return explorer_state["instance"]
+
+    explorer = GraphExplorer(nodes)
+    st.session_state.explorer = {"instance": explorer, "token": reload_token}
+    return explorer
+
+
 def reset_filters():
     st.session_state.filters = GraphFilters.reset()
 
@@ -225,7 +237,7 @@ def render_filters(nodes):
 
     cols = st.columns(2)
     with cols[0]:
-        st.button("Reset filters", type="secondary", on_click=reset_filters, use_container_width=True)
+        st.button("Reset filters", type="secondary", on_click=reset_filters, width="stretch")
     with cols[1]:
         if filters.categories or not filters.include_completed or not filters.include_incomplete or backlog_only or hide_filtered:
             st.info("Filters are active")
@@ -245,9 +257,9 @@ def render_backlog(nodes):
 
     add_cols = st.columns([2, 1])
     with add_cols[0]:
-        st.button("Add to backlog", on_click=apply_backlog_addition, args=(node_to_add,), use_container_width=True)
+        st.button("Add to backlog", on_click=apply_backlog_addition, args=(node_to_add,), width="stretch")
     with add_cols[1]:
-        st.button("Remove", on_click=remove_backlog_item, args=(node_to_add,), use_container_width=True)
+        st.button("Remove", on_click=remove_backlog_item, args=(node_to_add,), width="stretch")
 
     if backlog:
         st.markdown("**Priority order**")
@@ -261,7 +273,7 @@ def render_backlog(nodes):
                     key=f"up-{node_id}",
                     on_click=reorder_backlog,
                     args=(node_id, -1),
-                    use_container_width=True,
+                    width="stretch",
                 )
             with cols[2]:
                 st.button(
@@ -269,7 +281,7 @@ def render_backlog(nodes):
                     key=f"down-{node_id}",
                     on_click=reorder_backlog,
                     args=(node_id, 1),
-                    use_container_width=True,
+                    width="stretch",
                 )
             with cols[3]:
                 st.button(
@@ -277,7 +289,7 @@ def render_backlog(nodes):
                     key=f"drop-{node_id}",
                     on_click=remove_backlog_item,
                     args=(node_id,),
-                    use_container_width=True,
+                    width="stretch",
                     type="secondary",
                 )
     else:
@@ -311,7 +323,7 @@ def render_graph(explorer, nodes):
     )
 
     graphviz_spec = build_graphviz(graph_view)
-    st.graphviz_chart(graphviz_spec, use_container_width=True)
+    st.graphviz_chart(graphviz_spec, width="stretch")
 
     with st.expander("Selection details", expanded=bool(st.session_state.selected)):
         if st.session_state.selected:
@@ -344,7 +356,7 @@ def main():
         st.markdown("**Data source**")
         st.write(INPUT_DIR)
     with hero_cols[1]:
-        if st.button("Reload data", type="secondary", use_container_width=True):
+        if st.button("Reload data", type="secondary", width="stretch"):
             st.session_state.reload_token += 1
             st.cache_data.clear()
             st.rerun()
@@ -366,7 +378,7 @@ def main():
     if validation_result.has_errors:
         st.stop()
 
-    explorer = GraphExplorer(load_report.nodes)
+    explorer = get_explorer(load_report.nodes)
     node_count = len(load_report.nodes)
     tech_count = sum(1 for node in load_report.nodes.values() if node.node_type.value == "tech")
     project_count = node_count - tech_count
