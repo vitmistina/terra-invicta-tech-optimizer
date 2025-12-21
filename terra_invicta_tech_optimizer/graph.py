@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List, Set, Tuple
 
 from .input_loader import Node, NodeType
 
@@ -80,6 +80,7 @@ class GraphExplorer:
     def __init__(self, nodes: Dict[str, Node]):
         self.nodes = nodes
         self._dependents_map = self._build_dependents_map(nodes)
+        self._view_cache: Dict[Tuple[Any, ...], GraphView] = {}
 
     def build_view(
         self,
@@ -92,6 +93,10 @@ class GraphExplorer:
         completed_set = set(completed or [])
         backlog_set = set(backlog or [])
         filters = filters or GraphFilters()
+
+        cache_key = self._cache_key(selected, completed_set, backlog, filters)
+        if cache_key in self._view_cache:
+            return self._view_cache[cache_key]
 
         prerequisite_highlight = self._walk_prerequisites(selected) if selected else set()
         dependent_highlight = self._walk_dependents(selected) if selected else set()
@@ -112,7 +117,9 @@ class GraphExplorer:
         node_visibility = {node.identifier: not node.is_hidden for node in node_views}
         edge_views = self._build_edges(node_visibility, selected, prerequisite_highlight, dependent_highlight, filters)
 
-        return GraphView(nodes=node_views, edges=edge_views, selected=selected, filters=filters)
+        view = GraphView(nodes=node_views, edges=edge_views, selected=selected, filters=filters)
+        self._view_cache[cache_key] = view
+        return view
 
     def _build_node_view(
         self,
@@ -245,4 +252,21 @@ class GraphExplorer:
             for prereq in node.prereqs:
                 dependents.setdefault(prereq, []).append(node.identifier)
         return dependents
+
+    def _cache_key(
+        self,
+        selected: str | None,
+        completed: Set[str],
+        backlog: Iterable[str] | None,
+        filters: GraphFilters,
+    ) -> Tuple[Any, ...]:
+        backlog_order = tuple(backlog or [])
+        filters_key = (
+            tuple(sorted(filters.categories)) if filters.categories else None,
+            filters.include_completed,
+            filters.include_incomplete,
+            filters.backlog_only,
+            filters.hide_filtered,
+        )
+        return (selected, tuple(sorted(completed)), backlog_order, filters_key)
 

@@ -83,3 +83,24 @@ def test_reset_filters_restores_full_graph():
     reset_view = explorer.build_view(filters=GraphFilters.reset())
     assert all(node.is_hidden is False for node in reset_view.nodes)
     assert all(edge.is_hidden is False for edge in reset_view.edges)
+
+
+def test_build_view_reuses_cached_results_for_same_inputs():
+    explorer = GraphExplorer(sample_nodes())
+
+    filters = GraphFilters(categories={"Energy"}, hide_filtered=False)
+    first_view = explorer.build_view(
+        selected="TechB",
+        completed={"TechA"},
+        backlog=["TechB", "Proj1"],
+        filters=filters,
+    )
+
+    second_view = explorer.build_view(
+        selected="TechB",
+        completed={"TechA"},
+        backlog=["TechB", "Proj1"],
+        filters=GraphFilters(categories={"Energy"}, hide_filtered=False),
+    )
+
+    assert first_view is second_view
