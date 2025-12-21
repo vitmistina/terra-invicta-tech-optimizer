@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import asdict
+from html import escape as html_escape
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from terra_invicta_tech_optimizer import (
     GraphExplorer,
@@ -13,13 +17,26 @@ from terra_invicta_tech_optimizer import (
 )
 
 
-INPUT_DIR = Path(__file__).parent / "inputs"
+BASE_DIR = Path(__file__).parent
+INPUT_DIR = BASE_DIR / "inputs"
+STATIC_DIR = BASE_DIR / "static"
 
-st.set_page_config(
-    page_title="Terra Invicta Tech Planner",
-    layout="wide",
-    page_icon="🚀",
-)
+CATEGORY_ICON_MAP = {
+    "energy": "30px-Tech_energy_icon.png",
+    "informationscience": "30px-Tech_info_icon.png",
+    "lifescience": "30px-Tech_life_icon.png",
+    "materials": "30px-Tech_material_icon.png",
+    "militaryscience": "30px-Tech_military_icon.png",
+    "socialscience": "30px-Tech_social_icon.png",
+    "spacescience": "30px-Tech_space_icon.png",
+    "xenology": "30px-Tech_xeno_icon.png",
+    "info": "30px-Tech_info_icon.png",
+    "life": "30px-Tech_life_icon.png",
+    "military": "30px-Tech_military_icon.png",
+    "social": "30px-Tech_social_icon.png",
+    "space": "30px-Tech_space_icon.png",
+    "xeno": "30px-Tech_xeno_icon.png",
+}
 
 
 def _load_inputs(reload_token: int):
@@ -89,17 +106,6 @@ def remove_backlog_item(node_id: str | None):
     if not node_id:
         return
     st.session_state.backlog = [node for node in st.session_state.backlog if node != node_id]
-
-
-def reorder_backlog(node_id: str, direction: int):
-    backlog = st.session_state.backlog
-    if node_id not in backlog:
-        return
-    idx = backlog.index(node_id)
-    new_index = max(0, min(len(backlog) - 1, idx + direction))
-    if new_index == idx:
-        return
-    backlog[idx], backlog[new_index] = backlog[new_index], backlog[idx]
 
 
 def build_graphviz(view):
@@ -196,6 +202,167 @@ def _option_choices(nodes):
     return dict(sorted(entries.items(), key=lambda item: item[0].lower()))
 
 
+def _node_cost(node) -> int | None:
+    raw_cost = node.metadata.get("researchCost")
+    if raw_cost is None:
+        return None
+    try:
+        cost = int(raw_cost)
+    except (TypeError, ValueError):
+        return None
+    if cost < 0:
+        return None
+    return cost
+
+
+def _format_cost(cost: int | None) -> str:
+    return f"{cost:,}" if cost is not None else "N/A"
+
+
+def _category_icon_path(category: str | None) -> Path | None:
+    if not category:
+        return None
+    key = re.sub(r"[^a-z0-9]", "", str(category).casefold())
+    filename = CATEGORY_ICON_MAP.get(key)
+    if not filename:
+        return None
+    path = STATIC_DIR / filename
+    return path if path.exists() else None
+
+
+def _matches_filters(node, completed: set[str], backlog: set[str], filters: GraphFilters) -> bool:
+    is_completed = node.identifier in completed
+    in_backlog = node.identifier in backlog
+    passes_category = not filters.categories or (node.category in filters.categories)
+    passes_completion = (is_completed and filters.include_completed) or (
+        not is_completed and filters.include_incomplete
+    )
+    passes_backlog = (not filters.backlog_only) or in_backlog
+    return passes_category and passes_completion and passes_backlog
+
+
+def _sort_nodes_for_list(nodes, mode: str):
+    if mode.startswith("Tech cost"):
+        def _cost_key(node):
+            cost = _node_cost(node)
+            missing = cost is None
+            return (missing, -(cost or 0), node.friendly_name.lower())
+
+        return sorted(nodes, key=_cost_key)
+    return sorted(nodes, key=lambda node: node.friendly_name.lower())
+
+
+def _parse_backlog_order(value: str, backlog: list[str]) -> list[str] | None:
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, list):
+        return None
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    allowed = set(backlog)
+    for item in parsed:
+        node_id = str(item)
+        if node_id in allowed and node_id not in seen:
+            cleaned.append(node_id)
+            seen.add(node_id)
+    for node_id in backlog:
+        if node_id not in seen:
+            cleaned.append(node_id)
+            seen.add(node_id)
+    return cleaned
+
+
+def _render_sortable_backlog(backlog: list[str], nodes) -> None:
+    # Custom HTML/JS updates a hidden Streamlit text input with the reordered IDs.
+    items = []
+    for node_id in backlog:
+        node = nodes.get(node_id)
+        if not node:
+            continue
+        label = f"{node.friendly_name} ({node.node_type.value.title()})"
+        safe_label = html_escape(label)
+        safe_id = html_escape(node_id)
+        items.append(f'<li class="backlog-item" draggable="true" data-id="{safe_id}">{safe_label}</li>')
+
+    list_html = "\n".join(items)
+    html = f"""
+    <div class="backlog-root">
+      <ul class="backlog-list">
+        {list_html}
+      </ul>
+    </div>
+    <script>
+    const list = document.querySelector(".backlog-list");
+    if (list) {{
+      const parentDoc = window.parent.document;
+      let dragItem = null;
+
+      const updateInput = () => {{
+        const order = Array.from(list.querySelectorAll(".backlog-item")).map((el) => el.dataset.id);
+        const input = parentDoc.querySelector("input[aria-label='Backlog order']");
+        if (!input) {{
+          return;
+        }}
+        input.value = JSON.stringify(order);
+        input.dispatchEvent(new Event("input", {{ bubbles: true }}));
+      }};
+
+      list.addEventListener("dragstart", (event) => {{
+        dragItem = event.target.closest(".backlog-item");
+        event.dataTransfer.effectAllowed = "move";
+      }});
+
+      list.addEventListener("dragover", (event) => {{
+        event.preventDefault();
+        const target = event.target.closest(".backlog-item");
+        if (!target || target === dragItem) {{
+          return;
+        }}
+        const rect = target.getBoundingClientRect();
+        const next = (event.clientY - rect.top) > (rect.height / 2);
+        list.insertBefore(dragItem, next ? target.nextSibling : target);
+      }});
+
+      list.addEventListener("drop", () => {{
+        updateInput();
+      }});
+
+      list.addEventListener("dragend", () => {{
+        updateInput();
+      }});
+    }}
+    </script>
+    <style>
+    .backlog-root {{
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }}
+    .backlog-list {{
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+    }}
+    .backlog-item {{
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      background: #f8fafc;
+      border: 1px solid #cbd5f5;
+      border-radius: 6px;
+      cursor: grab;
+      user-select: none;
+    }}
+    .backlog-item:active {{
+      cursor: grabbing;
+    }}
+    </style>
+    """
+    height = min(360, 38 * max(1, len(items)) + 20)
+    components.html(html, height=height, scrolling=True)
+
+
 def render_validation(result):
     if result.has_errors:
         with st.container(border=True):
@@ -216,7 +383,7 @@ def render_filters(nodes):
     categories = sorted({node.category for node in nodes.values() if node.category})
 
     st.subheader("Filters")
-    st.caption("Focus the graph on categories, completion state, or backlog.")
+    st.caption("Focus the list and results on categories, completion state, or backlog.")
 
     selected_categories = st.multiselect(
         "Categories",
@@ -245,55 +412,188 @@ def render_filters(nodes):
             st.caption("All nodes visible")
 
 
+def render_node_list(nodes):
+    st.subheader("Technology and project list")
+    st.caption("Click an item to add it to the backlog.")
+    st.markdown(
+        """
+        <style>
+        .tech-list-scope {
+          --tech-text: #e2e8f0;
+          --tech-muted: #94a3b8;
+          --tech-border: #334155;
+          --tech-pill: #1f2937;
+          --tech-tech-bg: #1e3a8a;
+          --tech-tech-border: #1d4ed8;
+          --tech-tech-text: #dbeafe;
+          --tech-proj-bg: #14532d;
+          --tech-proj-border: #16a34a;
+          --tech-proj-text: #dcfce7;
+        }
+        .tech-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          font-weight: 700;
+          font-size: 0.85rem;
+          letter-spacing: 0.02em;
+          color: var(--tech-text);
+          background: var(--tech-pill);
+          border: 1px solid var(--tech-border);
+        }
+        .tech-badge.tech {
+          background: var(--tech-tech-bg);
+          border-color: var(--tech-tech-border);
+          color: var(--tech-tech-text);
+        }
+        .tech-badge.project {
+          background: var(--tech-proj-bg);
+          border-color: var(--tech-proj-border);
+          color: var(--tech-proj-text);
+        }
+        .tech-name { font-weight: 600; color: var(--tech-text); }
+        .tech-status { font-size: 0.8rem; color: var(--tech-muted); margin-top: 2px; }
+        .tech-cost {
+          text-align: right;
+          font-family: "Consolas", "Courier New", monospace;
+          font-variant-numeric: tabular-nums;
+          color: var(--tech-text);
+          font-size: 0.6rem;
+        }
+        .tech-dim { opacity: 0.45; }
+        .tech-header {
+          text-transform: uppercase;
+          font-size: 0.72rem;
+          letter-spacing: 0.08em;
+          color: var(--tech-muted);
+          margin-bottom: 6px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    sort_mode = st.radio(
+        "Order within category",
+        ("Tech cost (desc)", "Friendly name (A-Z)"),
+        horizontal=True,
+    )
+
+    filters: GraphFilters = st.session_state.filters
+    completed = set(st.session_state.completed)
+    backlog_set = set(st.session_state.backlog)
+
+    grouped = {}
+    for node in nodes.values():
+        is_visible = _matches_filters(node, completed, backlog_set, filters)
+        if filters.hide_filtered and not is_visible:
+            continue
+        category = node.category or "Uncategorized"
+        grouped.setdefault(category, []).append((node, is_visible))
+
+    if not grouped:
+        st.caption("No items match the current filters.")
+        return
+
+    for category in sorted(grouped.keys()):
+        st.markdown(f"**{category}**")
+        header_cols = st.columns([0.1, 0.6, 0.14, 0.08])
+        header_cols[0].markdown("<div class='tech-header'>Category</div>", unsafe_allow_html=True)
+        header_cols[1].markdown("<div class='tech-header'>Name</div>", unsafe_allow_html=True)
+        header_cols[2].markdown("<div class='tech-header' style='text-align:right;'>Cost</div>", unsafe_allow_html=True)
+        header_cols[3].markdown("<div class='tech-header' style='text-align:center;'>Add</div>", unsafe_allow_html=True)
+        nodes_in_group = grouped[category]
+        visibility = {node.identifier: is_visible for node, is_visible in nodes_in_group}
+        sorted_nodes = _sort_nodes_for_list([node for node, _ in nodes_in_group], sort_mode)
+
+        for node in sorted_nodes:
+            cost_text = _format_cost(_node_cost(node))
+            status = []
+            if node.identifier in backlog_set:
+                status.append("Backlog")
+            if node.identifier in completed:
+                status.append("Completed")
+            if not visibility.get(node.identifier, True):
+                status.append("Filtered")
+
+            status_text = ", ".join(status) if status else ""
+            disabled = (node.identifier in backlog_set) or not visibility.get(node.identifier, True)
+            dim_class = " tech-dim" if not visibility.get(node.identifier, True) else ""
+            badge_text = "T" if node.node_type.value == "tech" else "P"
+            badge_kind = "tech" if node.node_type.value == "tech" else "project"
+
+            row_cols = st.columns([0.1, 0.6, 0.14, 0.08])
+            icon_path = _category_icon_path(node.category)
+            if icon_path:
+                row_cols[0].image(str(icon_path), width=24)
+            else:
+                row_cols[0].markdown(
+                    f"<div class='tech-list-scope tech-name{dim_class}'>{html_escape(node.category or 'Uncategorized')}</div>",
+                    unsafe_allow_html=True,
+                )
+            name_html = f"<div class='tech-name{dim_class}'>{html_escape(node.friendly_name)}</div>"
+            if status_text:
+                name_html += f"<div class='tech-status{dim_class}'>{html_escape(status_text)}</div>"
+            row_cols[1].markdown(f"<div class='tech-list-scope'>{name_html}</div>", unsafe_allow_html=True)
+            row_cols[2].markdown(
+                f"<div class='tech-list-scope tech-cost{dim_class}'>{cost_text}</div>",
+                unsafe_allow_html=True,
+            )
+            row_cols[3].button(
+                "✅" if node.identifier in backlog_set else "➕",
+                key=f"list-{node.identifier}",
+                on_click=apply_backlog_addition,
+                args=(node.identifier,),
+                width="stretch",
+                disabled=disabled,
+            )
+
+
 def render_backlog(nodes):
-    st.subheader("Backlog management")
-    st.caption("Build and reorder your priority queue. Items here gain emphasis in the graph.")
+    st.subheader("Backlog")
+    st.caption("Drag and drop to reorder. Use the list to add items.")
     backlog = st.session_state.backlog
 
-    options = _option_choices(nodes)
-    option_labels = ["Select a node"] + list(options.keys())
-    selected_label = st.selectbox("Add item", option_labels)
-    node_to_add = options.get(selected_label)
-
-    add_cols = st.columns([2, 1])
-    with add_cols[0]:
-        st.button("Add to backlog", on_click=apply_backlog_addition, args=(node_to_add,), width="stretch")
-    with add_cols[1]:
-        st.button("Remove", on_click=remove_backlog_item, args=(node_to_add,), width="stretch")
-
-    if backlog:
-        st.markdown("**Priority order**")
-        for idx, node_id in enumerate(backlog):
-            label = _friendly_name(node_id, nodes)
-            cols = st.columns([4, 1, 1, 1])
-            cols[0].write(f"{idx + 1}. {label}")
-            with cols[1]:
-                st.button(
-                    "⬆️",
-                    key=f"up-{node_id}",
-                    on_click=reorder_backlog,
-                    args=(node_id, -1),
-                    width="stretch",
-                )
-            with cols[2]:
-                st.button(
-                    "⬇️",
-                    key=f"down-{node_id}",
-                    on_click=reorder_backlog,
-                    args=(node_id, 1),
-                    width="stretch",
-                )
-            with cols[3]:
-                st.button(
-                    "Remove",
-                    key=f"drop-{node_id}",
-                    on_click=remove_backlog_item,
-                    args=(node_id,),
-                    width="stretch",
-                    type="secondary",
-                )
-    else:
+    if not backlog:
         st.caption("No backlog items yet.")
+        return
+
+    order_value = st.text_input(
+        "Backlog order",
+        value=json.dumps(backlog),
+        key="backlog_order",
+        label_visibility="collapsed",
+    )
+    st.markdown(
+        "<style>input[aria-label='Backlog order'] { display: none; }</style>",
+        unsafe_allow_html=True,
+    )
+    new_order = _parse_backlog_order(order_value, backlog)
+    if new_order is not None and new_order != backlog:
+        st.session_state.backlog = new_order
+        backlog = new_order
+        st.session_state.backlog_order = json.dumps(backlog)
+
+    _render_sortable_backlog(backlog, nodes)
+
+    remove_map = {}
+    for node_id in backlog:
+        label = f"{_friendly_name(node_id, nodes)} [{node_id}]"
+        remove_map[label] = node_id
+
+    selected_label = st.selectbox("Remove item", ["Select item"] + list(remove_map.keys()))
+    node_to_remove = remove_map.get(selected_label)
+    st.button(
+        "Remove selected",
+        on_click=remove_backlog_item,
+        args=(node_to_remove,),
+        width="stretch",
+        type="secondary",
+        disabled=node_to_remove is None,
+    )
 
 
 def render_completion(nodes):
@@ -348,8 +648,13 @@ def render_graph(explorer, nodes):
 
 
 def main():
+    st.set_page_config(
+        page_title="Terra Invicta Tech Planner",
+        layout="wide",
+        page_icon="ĐYs?",
+    )
     st.title("Terra Invicta Tech Planner")
-    st.caption("Explore the Terra Invicta tech tree, filter by focus, and curate your priority backlog.")
+    st.caption("Browse the full tech and project list, build a backlog, then proceed to results.")
 
     hero_cols = st.columns(3)
     with hero_cols[0]:
@@ -378,7 +683,6 @@ def main():
     if validation_result.has_errors:
         st.stop()
 
-    explorer = get_explorer(load_report.nodes)
     node_count = len(load_report.nodes)
     tech_count = sum(1 for node in load_report.nodes.values() if node.node_type.value == "tech")
     project_count = node_count - tech_count
@@ -397,7 +701,15 @@ def main():
         render_backlog(load_report.nodes)
 
     with cols[1]:
-        render_graph(explorer, load_report.nodes)
+        st.subheader("Next step")
+        st.caption("Run the calculation and open the results view.")
+        if st.button("Proceed with calculation", type="primary", width="stretch"):
+            st.session_state.calculation_requested = True
+            st.switch_page("pages/Results.py")
+        if st.button("Open graph explorer", type="secondary", width="stretch"):
+            st.switch_page("pages/Graph.py")
+        st.divider()
+        render_node_list(load_report.nodes)
 
 
 if __name__ == "__main__":
