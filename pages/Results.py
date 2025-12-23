@@ -15,6 +15,7 @@ from main import (
     INPUT_DIR,
     ensure_state,
     get_models,
+    hydrate_backlog_from_storage,
     load_inputs,
     render_validation,
     validate_graph,
@@ -66,6 +67,20 @@ def main():
 
     graph_data, _ = get_models(load_report.nodes)
     ensure_state(load_report.nodes, graph_data=graph_data)
+    decoded = hydrate_backlog_from_storage(graph_data)
+    dropped = st.session_state.get("backlog_storage_dropped")
+    if decoded and decoded.dropped:
+        st.info(
+            "Some stored backlog items were ignored because they are missing in this dataset: "
+            + ", ".join(decoded.dropped),
+            icon="ℹ️",
+        )
+    elif dropped:
+        st.info(
+            "Some stored backlog items were ignored because they are missing in this dataset: "
+            + ", ".join(dropped),
+            icon="ℹ️",
+        )
 
     validation_result = validate_graph(load_report.nodes)
     render_validation(validation_result)
