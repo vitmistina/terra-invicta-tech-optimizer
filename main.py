@@ -148,7 +148,7 @@ def ensure_state(nodes, *, graph_data: GraphData) -> None:
         }
 
 
-def _storage_component(script: str, *, key: str) -> Any:
+def _storage_component(script: str) -> Any:
     return components.html(
         f"""
         <script>
@@ -158,11 +158,10 @@ def _storage_component(script: str, *, key: str) -> Any:
         height=0,
         width=0,
         scrolling=False,
-        key=key,
     )
 
 
-def _read_backlog_storage(*, key: str = "backlog-storage-read") -> dict | None:
+def _read_backlog_storage() -> dict | None:
     return _storage_component(
         f"""
         (() => {{
@@ -184,11 +183,10 @@ def _read_backlog_storage(*, key: str = "backlog-storage-read") -> dict | None:
             }}
         }})();
         """,
-        key=key,
     )
 
 
-def _write_backlog_storage(payload: dict, *, key: str = "backlog-storage-write") -> dict | None:
+def _write_backlog_storage(payload: dict) -> dict | None:
     encoded = json.dumps(payload)
     return _storage_component(
         f"""
@@ -202,7 +200,6 @@ def _write_backlog_storage(payload: dict, *, key: str = "backlog-storage-write")
             }}
         }})();
         """,
-        key=key,
     )
 
 
