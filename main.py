@@ -163,10 +163,7 @@ def _storage_component(script: str) -> Any:
         <script>
         {script}
         </script>
-        """,
-        height=0,
-        width=0,
-        scrolling=False,
+        """
     )
 
 
