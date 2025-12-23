@@ -148,8 +148,17 @@ def ensure_state(nodes, *, graph_data: GraphData) -> None:
         }
 
 
+def _storage_placeholder():
+    """Reuse a single invisible component to avoid accumulating iframes."""
+
+    if "_backlog_storage_placeholder" not in st.session_state:
+        st.session_state._backlog_storage_placeholder = st.empty()
+    return st.session_state._backlog_storage_placeholder
+
+
 def _storage_component(script: str) -> Any:
-    return components.html(
+    placeholder = _storage_placeholder()
+    return placeholder.html(
         f"""
         <script>
         {script}
@@ -162,6 +171,13 @@ def _storage_component(script: str) -> Any:
 
 
 def _read_backlog_storage() -> dict | None:
+    st.session_state.setdefault("backlog_storage_attempts", 0)
+
+    # Avoid spawning additional background iframes once we've tried a few times.
+    if st.session_state.backlog_storage_attempts > 3:
+        return None
+
+    st.session_state.backlog_storage_attempts += 1
     return _storage_component(
         f"""
         (() => {{
