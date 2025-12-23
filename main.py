@@ -234,6 +234,7 @@ def hydrate_backlog_from_storage(graph_data: GraphData) -> DecodedBacklog | None
         st.session_state.backlog_state = decoded.backlog
         st.session_state.backlog_storage_hydrated = True
         st.session_state.backlog_storage_last = json.dumps(payload, sort_keys=True)
+        st.session_state.backlog_storage_last_order = decoded.backlog.order
         st.session_state.backlog_storage_dirty = False
     else:
         st.session_state.backlog_storage_hydrated = True
@@ -249,6 +250,13 @@ def persist_backlog_storage(graph_data: GraphData) -> dict | None:
         return None
 
     backlog_state: BacklogState = st.session_state.backlog_state
+    if (
+        st.session_state.get("backlog_storage_last_order")
+        == backlog_state.order
+    ):
+        st.session_state.backlog_storage_dirty = False
+        return None
+
     payload = encode_backlog(graph_data, backlog_state)
     serialized = json.dumps(payload, sort_keys=True)
     if st.session_state.get("backlog_storage_last") == serialized:
@@ -256,6 +264,7 @@ def persist_backlog_storage(graph_data: GraphData) -> dict | None:
         return None
 
     st.session_state.backlog_storage_last = serialized
+    st.session_state.backlog_storage_last_order = backlog_state.order
     st.session_state.backlog_storage_dirty = False
     result = _write_backlog_storage(payload)
     if isinstance(result, dict) and not result.get("ok", True):
