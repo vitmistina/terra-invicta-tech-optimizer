@@ -168,7 +168,7 @@ def _read_backlog_storage() -> tuple[dict | None, str | None]:
     st.session_state.backlog_storage_attempts += 1
     storage = _get_local_storage()
     try:
-        raw = storage.getItem(STORAGE_KEY, key="backlog_storage_get")
+        raw = storage.getItem(STORAGE_KEY)
     except Exception as exc:  # pragma: no cover - defensive for component failures.
         return None, str(exc)
 
@@ -189,7 +189,7 @@ def _write_backlog_storage(payload: dict) -> str | None:
     encoded = json.dumps(payload, sort_keys=True)
     storage = _get_local_storage()
     try:
-        storage.setItem(STORAGE_KEY, encoded, key="backlog_storage_set")
+        storage.setItem(STORAGE_KEY, encoded)
     except Exception as exc:  # pragma: no cover - defensive for component failures.
         return str(exc)
     return None
