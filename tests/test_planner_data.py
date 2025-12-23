@@ -114,3 +114,159 @@ def test_backlog_state_operations_are_minimal_and_correct():
     state = backlog_reorder(state, [4, 3, 999, 1])
     assert state.order == (4, 3, 1)
     assert state.members == frozenset({1, 3, 4})
+
+
+def test_search_query_filters_by_friendly_name_only():
+    """Test that search_query filters only by friendly_name (case-insensitive substring)."""
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+    flat_list = build_flat_node_list(graph, nodes)
+
+    # Search for "Tech" - should match "Tech A" and "Tech B" but not "Project One"
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query="Tech"),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    visible = set(view.visible_indices)
+    assert graph.id_to_index["TechA"] in visible
+    assert graph.id_to_index["TechB"] in visible
+    assert graph.id_to_index["Proj1"] not in visible
+
+
+def test_search_query_is_case_insensitive():
+    """Test that search is case-insensitive."""
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+    flat_list = build_flat_node_list(graph, nodes)
+
+    # Search with lowercase "project" should match "Project One"
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query="project"),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    visible = set(view.visible_indices)
+    assert graph.id_to_index["Proj1"] in visible
+    assert graph.id_to_index["TechA"] not in visible
+
+
+def test_search_query_substring_match():
+    """Test that search uses substring matching."""
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+    flat_list = build_flat_node_list(graph, nodes)
+
+    # Search for "One" should match "Project One"
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query="One"),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    visible = set(view.visible_indices)
+    assert graph.id_to_index["Proj1"] in visible
+
+
+def test_search_query_does_not_match_id_or_category():
+    """Test that search does NOT match node_id or category, only friendly_name."""
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+    flat_list = build_flat_node_list(graph, nodes)
+
+    # Search for "TechA" (node ID) should not match anything
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query="TechA"),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    assert len(view.visible_indices) == 0
+
+    # Search for "Energy" (category) should not match anything
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query="Energy"),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    assert len(view.visible_indices) == 0
+
+
+def test_search_query_with_whitespace_is_trimmed():
+    """Test that leading/trailing whitespace in search query is handled."""
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+    flat_list = build_flat_node_list(graph, nodes)
+
+    # Search with whitespace should still match
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query="  Tech  "),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    visible = set(view.visible_indices)
+    assert graph.id_to_index["TechA"] in visible
+    assert graph.id_to_index["TechB"] in visible
+
+
+def test_search_query_empty_shows_all():
+    """Test that empty or None search_query shows all items."""
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+    flat_list = build_flat_node_list(graph, nodes)
+
+    # None search_query
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query=None),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    assert len(view.visible_indices) == 3
+
+    # Empty string
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(search_query=""),
+        completed=set(),
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    assert len(view.visible_indices) == 3
+
+
+def test_search_query_combined_with_other_filters():
+    """Test that search works correctly when combined with other filters."""
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+    flat_list = build_flat_node_list(graph, nodes)
+
+    completed = {graph.id_to_index["TechA"]}
+
+    # Search for "Tech" + exclude completed -> should only show TechB
+    view = build_flat_list_view(
+        flat_list,
+        filters=ListFilters(
+            search_query="Tech",
+            include_completed=False,
+            include_incomplete=True,
+        ),
+        completed=completed,
+        backlog_members=set(),
+        sort_mode="Friendly name (A-Z)",
+    )
+    visible = set(view.visible_indices)
+    assert graph.id_to_index["TechB"] in visible
+    assert graph.id_to_index["TechA"] not in visible
+    assert graph.id_to_index["Proj1"] not in visible

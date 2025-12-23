@@ -803,75 +803,8 @@ def render_graph(explorer, nodes):
 
 
 def main():
-    st.set_page_config(
-        page_title="Terra Invicta Tech Planner",
-        layout="wide",
-        page_icon="ĐYs?",
-    )
-    st.title("Terra Invicta Tech Planner")
-    st.caption(
-        "Browse the full tech and project list, build a backlog, then proceed to results."
-    )
-
-    hero_cols = st.columns(3)
-    with hero_cols[0]:
-        st.markdown("**Data source**")
-        st.write(INPUT_DIR)
-    with hero_cols[1]:
-        if st.button("Reload data", type="secondary", width="stretch"):
-            st.session_state.reload_token += 1
-            st.cache_data.clear()
-            st.rerun()
-    with hero_cols[2]:
-        st.markdown(
-            "Need help? See [user stories](docs/user_stories.md) for expected flows."
-        )
-
-    load_report = load_inputs(st.session_state.get("reload_token", 0))
-
-    if load_report.errors:
-        st.error("Encountered errors while loading inputs:")
-        for error in load_report.errors:
-            st.write(f"- {error}")
-        st.stop()
-
-    graph_data, _ = get_models(load_report.nodes)
-    ensure_state(load_report.nodes, graph_data=graph_data)
-
-    validation_result = validate_graph(load_report.nodes)
-    render_validation(validation_result)
-    if validation_result.has_errors:
-        st.stop()
-
-    node_count = len(load_report.nodes)
-    tech_count = sum(
-        1 for node in load_report.nodes.values() if node.node_type.value == "tech"
-    )
-    project_count = node_count - tech_count
-
-    metric_cols = st.columns(3)
-    metric_cols[0].metric("Total nodes", node_count)
-    metric_cols[1].metric("Techs", tech_count)
-    metric_cols[2].metric("Projects", project_count)
-
-    cols = st.columns([1, 1.5], gap="large")
-    with cols[0]:
-        render_filters(load_report.nodes)
-        st.divider()
-        render_completion(load_report.nodes)
-        st.divider()
-        render_backlog(load_report.nodes)
-
-    with cols[1]:
-        st.subheader("Next step")
-        st.caption("Run the calculation and open the results view.")
-        if st.button("Proceed with calculation", type="primary", width="stretch"):
-            st.session_state.calculation_requested = True
-            st.switch_page("pages/Results.py")
-        if st.button("Open graph explorer", type="secondary", width="stretch"):
-            st.switch_page("pages/Graph.py")
-        st.divider()
-        render_node_list(load_report.nodes)
+    # Redirect to Start here page as the default landing
+    st.switch_page("pages/Start_here.py")
 
 
 if __name__ == "__main__":

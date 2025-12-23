@@ -1,0 +1,25 @@
+## 1. Proposal Implementation Tasks
+
+- [x] 1.0 Make Start here the default landing page:
+  - [x] Ensure launching `uv run streamlit run main.py` starts on "Start here" (via redirect or by making `main.py` the Start here page).
+- [x] 1.1 Add `pages/Start_here.py` implementing the wireframe layout using existing helpers imported from `main.py`.
+- [x] 1.2 Add a "Search" input placed in the Start here header area.
+- [x] 1.2.1 Debounce Search input updates (apply filtering only after a short idle delay, e.g. ~250ms).
+- [x] 1.3 Extend list filtering to support Friendly Name-only search:
+  - [x] Add `search_query: str | None` to `ListFilters`.
+  - [x] Update `build_flat_list_view(...)` to filter rows where `friendly_name` contains the search query (case-insensitive substring match).
+  - [x] Update existing planner list rendering to pass/apply the search query where appropriate.
+- [x] 1.4 Implement sticky backlog behavior on the Start here page:
+  - [x] Backlog panel remains visible at the top as the user scrolls the long technology list.
+- [x] 1.5 Ensure Start here page styling is readable in both light and dark Streamlit themes:
+  - [x] Remove/adjust any dark-only hard-coded colors used by new/modified UI components.
+  - [x] Ensure backlog HTML/CSS uses theme-safe colors or variables.
+- [x] 1.5.1 Minimize custom CSS: use Streamlit defaults for list/filter UI; limit any CSS to sticky backlog + existing drag/drop backlog styling.
+- [x] 1.6 Add/extend unit tests:
+  - [x] Add tests in `tests/test_planner_data.py` verifying search matches only Friendly Name (not id/category/type).
+- [x] 1.7 Update docs:
+  - [x] Update `README.md` to mention the new Start here page and clarify search semantics (Friendly Name only).
+- [x] 1.8 Validation
+  - [x] `uv run pytest -q`
+  - [x] Coverage gate commands from `AGENTS.md` (total ≥ 90%, per-file ≥ 75%)
+  - [x] Manual check: typing quickly in Search does not lag and filtering updates after the debounce delay

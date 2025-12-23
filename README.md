@@ -1,4 +1,5 @@
 # terra-invicta-tech-optimizer
+
 This project loads tech tree template file from the Terra Invicta game and lets the player browse techs and projects, filter them, and curate a backlog of priorities before running results.
 
 ## Streamlit planning workspace
@@ -9,18 +10,22 @@ Launch the interactive planner from the repository root:
 uv run streamlit run main.py
 ```
 
-The main planner provides:
+The app opens on the **Start here** page, which provides:
 
-- A validation gate that surfaces missing references, cycles, or project dependency gaps before any planning continues.
-- Category and completion filters that can either hide or de-emphasize list items, plus a quick reset back to the full list.
+- A **Search** input that filters the technology and project list by **Friendly Name only** (case-insensitive substring match, debounced for responsive typing).
+- Category and completion filters that can either hide or de-emphasize list items.
+- A **sticky backlog panel** that stays visible at the top as you scroll through the technology list.
+- A drag-and-drop backlog queue with a "Calculate optimal path" button that opens the Results page.
 - A combined tech and project list grouped by category, ordered by cost or friendly name, with click-to-add backlog entries.
-- A drag-and-drop backlog queue and a "Proceed with calculation" button that opens the Results page.
+- Theme-safe styling that maintains readability in both Streamlit light and dark themes.
 
-The Results page provides:
+Additional pages:
+
+The **Results** page provides:
 
 - A landing spot for calculation output (and a shortcut to the Graph page).
 
-The Graph page provides:
+The **Graph** page provides:
 
 - The graph explorer that highlights prerequisites and dependents for the focused node.
 - Backlog, completion, and filter tools that influence graph highlighting.
@@ -53,4 +58,5 @@ The `GraphExplorer` utility in `terra_invicta_tech_optimizer/graph.py` prepares 
 See `tests/test_graph_explorer.py` for examples of how to assemble a filtered graph view.
 
 ## Planning
+
 Detailed user stories and acceptance criteria for the Streamlit app live in [docs/user_stories.md](docs/user_stories.md).

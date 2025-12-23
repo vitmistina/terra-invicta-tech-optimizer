@@ -156,6 +156,7 @@ class ListFilters:
     include_completed: bool = True
     include_incomplete: bool = True
     backlog_only: bool = False
+    search_query: str | None = None
 
     @classmethod
     def reset(cls) -> "ListFilters":
@@ -191,6 +192,10 @@ def build_flat_list_view(
     include_completed = filters.include_completed
     include_incomplete = filters.include_incomplete
     backlog_only = filters.backlog_only
+    search_query = filters.search_query
+
+    # Normalize search query for case-insensitive substring matching
+    search_normalized = search_query.strip().casefold() if search_query else None
 
     visible_by_category: dict[str, tuple[int, ...]] = {}
 
@@ -211,6 +216,13 @@ def build_flat_list_view(
                 continue
             if backlog_only and not in_backlog:
                 continue
+
+            # Apply search filter if query is present
+            if search_normalized:
+                row = flat_list.rows[idx]
+                if search_normalized not in row.friendly_name_casefold:
+                    continue
+
             visible.append(idx)
 
         if visible:
