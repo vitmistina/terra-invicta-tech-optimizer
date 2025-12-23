@@ -152,12 +152,7 @@ def ensure_state(nodes, *, graph_data: GraphData) -> None:
 
 
 def _storage_component(script: str) -> Any:
-    placeholder = st.session_state.get("backlog_storage_placeholder")
-    if placeholder is None:
-        placeholder = st.empty()
-        st.session_state.backlog_storage_placeholder = placeholder
-
-    return placeholder.html(
+    return components.html(
         f"""
         <script>
         {script}
