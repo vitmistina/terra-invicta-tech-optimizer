@@ -1,5 +1,5 @@
 - [x] Review existing backlog/session handling in `main.py` and `pages/Start_here.py` to map current persistence points.
 - [x] Draft backlog persistence spec (localStorage load/save, conflict handling, resilience) under `specs/`.
 - [x] Draft research simulation + timelines spec capturing US-07/09/10 behaviors aligned with the Start here backlog and filters.
-- [ ] Validate the specs for formatting/coverage (when tooling availability allows).
+- [x] Validate the specs for formatting/coverage (when tooling availability allows).
 - [x] Plan deprecation or update notes for `docs/user_stories.md` once the new specs are accepted.
