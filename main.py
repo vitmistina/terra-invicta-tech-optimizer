@@ -151,17 +151,8 @@ def ensure_state(nodes, *, graph_data: GraphData) -> None:
         }
 
 
-def _storage_placeholder():
-    """Reuse a single invisible component to avoid accumulating iframes."""
-
-    if "_backlog_storage_placeholder" not in st.session_state:
-        st.session_state._backlog_storage_placeholder = st.empty()
-    return st.session_state._backlog_storage_placeholder
-
-
 def _storage_component(script: str) -> Any:
-    placeholder = _storage_placeholder()
-    return placeholder.html(
+    return components.html(
         f"""
         <script>
         {script}
@@ -170,6 +161,7 @@ def _storage_component(script: str) -> Any:
         height=0,
         width=0,
         scrolling=False,
+        key="_backlog_storage_component",
     )
 
 
