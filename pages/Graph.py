@@ -7,7 +7,9 @@ from main import (
     ensure_state,
     get_models,
     get_explorer,
+    hydrate_backlog_from_storage,
     load_inputs,
+    persist_backlog_storage,
     render_backlog,
     render_completion,
     render_filters,
@@ -62,6 +64,7 @@ def main():
 
     graph_data, _ = get_models(load_report.nodes)
     ensure_state(load_report.nodes, graph_data=graph_data)
+    hydrate_backlog_from_storage(graph_data)
 
     validation_result = validate_graph(load_report.nodes)
     render_validation(validation_result)
