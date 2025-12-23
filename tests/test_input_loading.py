@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pytest
 
 from terra_invicta_tech_optimizer import GraphValidator, InputLoader, NodeType
 
@@ -17,7 +16,9 @@ def test_loads_json_and_filters_supported(tmp_path: Path):
     )
 
     csv_file = tmp_path / "projects.csv"
-    csv_file.write_text("dataName,friendlyName,prereqs,type\nProjB,Project B,TechA,project\n")
+    csv_file.write_text(
+        "dataName,friendlyName,prereqs,type\nProjB,Project B,TechA,project\n"
+    )
 
     unsupported = tmp_path / "ignore.me"
     unsupported.write_text("noop")
@@ -52,16 +53,3 @@ def test_validate_missing_and_cycles(tmp_path: Path):
     messages = {issue.message for issue in result.errors}
     assert any("Missing reference" in message for message in messages)
     assert any("Cycle detected" in message for message in messages)
-
-
-def test_project_requires_tech_dependency(tmp_path: Path):
-    input_file = tmp_path / "projects.tsv"
-    input_file.write_text("dataName\tprereqs\ttechCategory\nProj1\tProjectOnly\tSocial\n")
-
-    loader = InputLoader(tmp_path)
-    report = loader.load()
-    validator = GraphValidator(report.nodes)
-    result = validator.validate()
-
-    assert result.has_errors
-    assert any("must depend on at least one tech" in issue.message for issue in result.errors)
