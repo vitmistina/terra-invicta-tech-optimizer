@@ -5,10 +5,9 @@ import re
 from dataclasses import asdict
 from html import escape as html_escape
 from pathlib import Path
-from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
+from streamlit_local_storage import LocalStorage
 
 from terra_invicta_tech_optimizer import (
     GraphExplorer,
@@ -151,79 +150,58 @@ def ensure_state(nodes, *, graph_data: GraphData) -> None:
         }
 
 
-def _storage_component(script: str) -> Any:
-    return components.html(
-        f"""
-        <script>
-        {script}
-        </script>
-        """,
-        height=0,
-        width=0,
-        scrolling=False,
-    )
+def _get_local_storage() -> LocalStorage:
+    manager = st.session_state.get("local_storage_manager")
+    if manager is None:
+        manager = LocalStorage()
+        st.session_state.local_storage_manager = manager
+    return manager
 
 
-def _read_backlog_storage() -> dict | None:
+def _read_backlog_storage() -> tuple[dict | None, str | None]:
     st.session_state.setdefault("backlog_storage_attempts", 0)
 
     # Avoid spawning additional background iframes once we've tried a few times.
     if st.session_state.backlog_storage_attempts > 3:
-        return None
+        return None, None
 
     st.session_state.backlog_storage_attempts += 1
-    return _storage_component(
-        f"""
-        (() => {{
-            const sendValue = (value) => window.parent.postMessage({{type: "streamlit:setComponentValue", value}}, "*");
-            try {{
-                const raw = window.localStorage.getItem("{STORAGE_KEY}");
-                if (!raw) {{
-                    sendValue(null);
-                    return;
-                }}
-                try {{
-                    const parsed = JSON.parse(raw);
-                    sendValue({{ payload: parsed }});
-                }} catch (err) {{
-                    sendValue({{ payload: null, error: String(err) }});
-                }}
-            }} catch (err) {{
-                sendValue({{ payload: null, error: String(err) }});
-            }}
-        }})();
-        """,
-    )
+    storage = _get_local_storage()
+    try:
+        raw = storage.getItem(STORAGE_KEY, key="backlog_storage_get")
+    except Exception as exc:  # pragma: no cover - defensive for component failures.
+        return None, str(exc)
+
+    if raw is None:
+        return None, None
+    if isinstance(raw, dict):
+        return raw, None
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return None, str(exc)
+        return parsed, None
+    return None, f"Unexpected local storage payload type: {type(raw).__name__}"
 
 
-def _write_backlog_storage(payload: dict) -> dict | None:
+def _write_backlog_storage(payload: dict) -> str | None:
     encoded = json.dumps(payload, sort_keys=True)
-    return _storage_component(
-        f"""
-        (() => {{
-            const sendValue = (value) => window.parent.postMessage({{type: "streamlit:setComponentValue", value}}, "*");
-            try {{
-                const payload = {encoded};
-                const serialized = JSON.stringify(payload);
-                window.localStorage.setItem("{STORAGE_KEY}", serialized);
-                sendValue({{ ok: true }});
-            }} catch (err) {{
-                sendValue({{ ok: false, error: String(err) }});
-            }}
-        }})();
-        """,
-    )
+    storage = _get_local_storage()
+    try:
+        storage.setItem(STORAGE_KEY, encoded, key="backlog_storage_set")
+    except Exception as exc:  # pragma: no cover - defensive for component failures.
+        return str(exc)
+    return None
 
 
 def hydrate_backlog_from_storage(graph_data: GraphData) -> DecodedBacklog | None:
     if st.session_state.get("backlog_storage_hydrated"):
         return None
 
-    response = _read_backlog_storage()
-    if not response:
-        return None
-
-    payload = response.get("payload") if isinstance(response, dict) else None
+    payload, error = _read_backlog_storage()
+    if error:
+        st.session_state.backlog_storage_read_error = error
     if payload is None:
         st.session_state.backlog_storage_hydrated = True
         return None
@@ -244,7 +222,7 @@ def hydrate_backlog_from_storage(graph_data: GraphData) -> DecodedBacklog | None
     return decoded
 
 
-def persist_backlog_storage(graph_data: GraphData) -> dict | None:
+def persist_backlog_storage(graph_data: GraphData) -> None:
     if not st.session_state.get("backlog_storage_dirty", False):
         return None
 
@@ -265,10 +243,10 @@ def persist_backlog_storage(graph_data: GraphData) -> dict | None:
     st.session_state.backlog_storage_last = serialized
     st.session_state.backlog_storage_last_order = backlog_state.order
     st.session_state.backlog_storage_dirty = False
-    result = _write_backlog_storage(payload)
-    if isinstance(result, dict) and not result.get("ok", True):
-        st.session_state.backlog_storage_write_error = result.get("error")
-    return result
+    error = _write_backlog_storage(payload)
+    if error:
+        st.session_state.backlog_storage_write_error = error
+    return None
 
 
 def _persist_after_mutation() -> None:
