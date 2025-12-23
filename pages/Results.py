@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 import altair as alt
 import pandas as pd
 import streamlit as st
