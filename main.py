@@ -5,6 +5,7 @@ import re
 from dataclasses import asdict
 from html import escape as html_escape
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -14,17 +15,23 @@ from terra_invicta_tech_optimizer import (
     GraphFilters,
     GraphValidator,
     BacklogState,
+    DecodedBacklog,
     FlatNodeList,
     GraphData,
     InputLoader,
     ListFilters,
+    SimulationConfig,
+    SimulationSlotConfig,
     backlog_add,
     backlog_remove,
     backlog_reorder,
     build_flat_list_view,
     build_flat_node_list,
     build_graph_data,
+    decode_backlog,
+    encode_backlog,
 )
+from terra_invicta_tech_optimizer.backlog_storage import STORAGE_KEY
 
 
 BASE_DIR = Path(__file__).parent
@@ -141,6 +148,114 @@ def ensure_state(nodes, *, graph_data: GraphData) -> None:
         }
 
 
+def _storage_component(script: str, *, key: str) -> Any:
+    return components.html(
+        f"""
+        <script>
+        {script}
+        </script>
+        """,
+        height=0,
+        width=0,
+        scrolling=False,
+        key=key,
+    )
+
+
+def _read_backlog_storage(*, key: str = "backlog-storage-read") -> dict | None:
+    return _storage_component(
+        f"""
+        (() => {{
+            const sendValue = (value) => window.parent.postMessage({{type: "streamlit:setComponentValue", value}}, "*");
+            try {{
+                const raw = window.localStorage.getItem("{STORAGE_KEY}");
+                if (!raw) {{
+                    sendValue(null);
+                    return;
+                }}
+                try {{
+                    const parsed = JSON.parse(raw);
+                    sendValue({{ payload: parsed }});
+                }} catch (err) {{
+                    sendValue({{ payload: null, error: String(err) }});
+                }}
+            }} catch (err) {{
+                sendValue({{ payload: null, error: String(err) }});
+            }}
+        }})();
+        """,
+        key=key,
+    )
+
+
+def _write_backlog_storage(payload: dict, *, key: str = "backlog-storage-write") -> dict | None:
+    encoded = json.dumps(payload)
+    return _storage_component(
+        f"""
+        (() => {{
+            const sendValue = (value) => window.parent.postMessage({{type: "streamlit:setComponentValue", value}}, "*");
+            try {{
+                window.localStorage.setItem("{STORAGE_KEY}", {encoded});
+                sendValue({{ ok: true }});
+            }} catch (err) {{
+                sendValue({{ ok: false, error: String(err) }});
+            }}
+        }})();
+        """,
+        key=key,
+    )
+
+
+def hydrate_backlog_from_storage(graph_data: GraphData) -> DecodedBacklog | None:
+    if st.session_state.get("backlog_storage_hydrated"):
+        return None
+
+    response = _read_backlog_storage()
+    if not response:
+        return None
+
+    payload = response.get("payload") if isinstance(response, dict) else None
+    if payload is None:
+        st.session_state.backlog_storage_hydrated = True
+        return None
+
+    decoded = decode_backlog(payload, graph_data)
+    if decoded:
+        st.session_state.backlog_state = decoded.backlog
+        st.session_state.backlog_storage_hydrated = True
+    else:
+        st.session_state.backlog_storage_hydrated = True
+        return None
+
+    if decoded.dropped:
+        st.session_state.backlog_storage_dropped = decoded.dropped
+    return decoded
+
+
+def persist_backlog_storage(graph_data: GraphData) -> dict | None:
+    backlog_state: BacklogState = st.session_state.backlog_state
+    payload = encode_backlog(graph_data, backlog_state)
+    serialized = json.dumps(payload, sort_keys=True)
+    if st.session_state.get("backlog_storage_last") == serialized:
+        return None
+
+    st.session_state.backlog_storage_last = serialized
+    result = _write_backlog_storage(payload)
+    if isinstance(result, dict) and not result.get("ok", True):
+        st.session_state.backlog_storage_write_error = result.get("error")
+    return result
+
+
+def _persist_after_mutation() -> None:
+    models = st.session_state.get("models")
+    if not models:
+        return
+    graph_data: GraphData | None = models.get("graph_data")
+    if graph_data is None:
+        return
+    persist_backlog_storage(graph_data)
+
+
 def get_explorer(nodes):
     reload_token = st.session_state.get("reload_token", 0)
     explorer_state = st.session_state.get("explorer")
@@ -163,6 +278,7 @@ def apply_backlog_addition(node_index: int | None):
     st.session_state.backlog_state = backlog_add(
         st.session_state.backlog_state, node_index
     )
+    _persist_after_mutation()
 
 
 def remove_backlog_item(node_index: int | None):
@@ -171,6 +287,7 @@ def remove_backlog_item(node_index: int | None):
     st.session_state.backlog_state = backlog_remove(
         st.session_state.backlog_state, node_index
     )
+    _persist_after_mutation()
 
 
 def build_graphviz(view):
@@ -690,6 +807,7 @@ def render_backlog(nodes):
         st.session_state.backlog_state = backlog_reorder(backlog, new_order)
         backlog = st.session_state.backlog_state
         st.session_state.backlog_order = json.dumps([str(idx) for idx in backlog.order])
+        _persist_after_mutation()
 
     _render_sortable_backlog(backlog, flat_list=flat_list)
 

@@ -21,6 +21,8 @@ from main import (
     ensure_state,
     get_models,
     load_inputs,
+    persist_backlog_storage,
+    hydrate_backlog_from_storage,
     remove_backlog_item,
     render_validation,
     validate_graph,
@@ -549,6 +551,28 @@ def main():
     graph_data, _ = get_models(load_report.nodes)
     ensure_state(load_report.nodes, graph_data=graph_data)
 
+    decoded = hydrate_backlog_from_storage(graph_data)
+    dropped = st.session_state.get("backlog_storage_dropped")
+    if decoded and decoded.dropped:
+        st.info(
+            "Some stored backlog items were ignored because they are missing in this dataset: "
+            + ", ".join(decoded.dropped),
+            icon="ℹ️",
+        )
+    elif dropped:
+        st.info(
+            "Some stored backlog items were ignored because they are missing in this dataset: "
+            + ", ".join(dropped),
+            icon="ℹ️",
+        )
+
+    write_error = st.session_state.get("backlog_storage_write_error")
+    if write_error:
+        st.warning(
+            "Backlog changes may not persist in this browser (storage unavailable).",
+            icon="⚠️",
+        )
+
     # Sync search from URL query params (must be after ensure_state)
     _sync_search_from_query_params()
 
@@ -576,6 +600,8 @@ def main():
 
     with right_col:
         render_technology_list(load_report.nodes)
+
+    persist_backlog_storage(graph_data)
 
 
 if __name__ == "__main__":
