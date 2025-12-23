@@ -119,10 +119,68 @@ def simulate_research(
             slots_progress[slot_idx] = _cost_for_index(candidate, costs=costs)
             in_progress_indices.add(candidate)
 
+        active_assignments = [
+            (
+                idx,
+                slots_assignment[idx],
+                slots_progress[idx],
+                slot_configs[idx],
+            )
+            for idx in range(len(slot_configs))
+            if slots_assignment[idx] is not None
+        ]
+
+        progress_candidates = [
+            remaining / slot_cfg.pips
+            for _, _, remaining, slot_cfg in active_assignments
+            if remaining is not None and slot_cfg.pips > 0
+        ]
+
+        if not progress_candidates:
+            if not active_assignments:
+                break
+
+            # No progress possible (e.g., zero pips). Capture the stalled state and exit.
+            snapshot_slots = [
+                SlotState(
+                    slot=slot_cfg.name,
+                    node_index=slots_assignment[idx],
+                    node_id=(graph_data.node_ids[slots_assignment[idx]] if slots_assignment[idx] is not None else None),
+                    friendly_name=(
+                        friendly_names.get(slots_assignment[idx])
+                        if slots_assignment[idx] is not None
+                        else None
+                    ),
+                    category=(
+                        categories.get(slots_assignment[idx])
+                        if slots_assignment[idx] is not None
+                        else None
+                    ),
+                    node_type=(
+                        node_types[slots_assignment[idx]]
+                        if slots_assignment[idx] is not None
+                        else None
+                    ),
+                    pips=slot_cfg.pips,
+                    remaining_cost=slots_progress[idx],
+                )
+                for idx, slot_cfg in enumerate(slot_configs)
+            ]
+
+            turns.append(
+                TurnSnapshot(
+                    turn=turn,
+                    slots=tuple(snapshot_slots),
+                    completed=tuple(),
+                )
+            )
+            break
+
+        tick = min(progress_candidates)
+
         snapshot_slots: list[SlotState] = []
         completed_events: list[CompletionEvent] = []
 
-        active_this_turn = False
         for slot_idx, slot_cfg in enumerate(slot_configs):
             node_index = slots_assignment[slot_idx]
             remaining = slots_progress[slot_idx]
@@ -130,18 +188,17 @@ def simulate_research(
             friendly_name: str | None = None
             category: str | None = None
             node_type: NodeType | None = None
+            remaining_after = remaining
 
             if node_index is not None:
-                active_this_turn = True
                 node_id = graph_data.node_ids[node_index]
                 friendly_name = friendly_names.get(node_index)
                 category = categories.get(node_index)
                 node_type = node_types[node_index]
 
                 if remaining is not None:
-                    remaining -= slot_cfg.pips
-                    slots_progress[slot_idx] = remaining
-                    if remaining <= 0:
+                    remaining_after = remaining - (slot_cfg.pips * tick)
+                    if remaining_after <= 0:
                         completed.add(node_index)
                         completed_events.append(
                             CompletionEvent(
@@ -153,6 +210,9 @@ def simulate_research(
                         )
                         slots_assignment[slot_idx] = None
                         slots_progress[slot_idx] = None
+                        remaining_after = 0.0
+                    else:
+                        slots_progress[slot_idx] = remaining_after
 
             snapshot_slots.append(
                 SlotState(
@@ -163,7 +223,7 @@ def simulate_research(
                     category=category,
                     node_type=node_type,
                     pips=slot_cfg.pips,
-                    remaining_cost=remaining,
+                    remaining_cost=remaining_after,
                 )
             )
 
@@ -175,17 +235,14 @@ def simulate_research(
             )
         )
 
-        if not active_this_turn and not completed_events:
-            break
-
-        if all(idx is None for idx in slots_assignment) and not completed_events:
+        if not any(idx is not None for idx in slots_assignment):
             candidate_remaining = _find_candidate(NodeType.TECH, set()) or _find_candidate(NodeType.PROJECT, set())
             if candidate_remaining is None:
                 break
 
         turn += 1
 
-        if turn > 500:
+        if turn > graph_data.size + 50:
             break
 
     category_mix = _build_category_mix(turns)

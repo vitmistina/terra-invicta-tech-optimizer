@@ -383,6 +383,8 @@ def render_backlog_container(nodes):
             use_container_width=True,
             key="calc_path_btn",
         ):
+            st.session_state.simulation_result = None
+            st.session_state.simulation_config = None
             st.session_state.calculation_requested = True
             st.switch_page("pages/Results.py")
 

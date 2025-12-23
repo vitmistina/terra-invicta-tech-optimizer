@@ -86,21 +86,38 @@ def main():
     metric_cols[2].metric("Projects", project_count)
 
     _ensure_simulation_defaults()
-    _render_simulation_controls()
 
     _, flat_list = get_models(load_report.nodes)
     costs = {row.index: row.cost for row in flat_list.rows}
     friendly_names = {row.index: row.friendly_name for row in flat_list.rows}
     categories = {row.index: row.category or "Uncategorized" for row in flat_list.rows}
 
-    config = _build_simulation_config()
-    result = simulate_research(
-        graph_data,
-        costs=costs,
-        friendly_names=friendly_names,
-        categories=categories,
-        config=config,
-    )
+    config = _render_simulation_controls()
+
+    stored_result = st.session_state.get("simulation_result")
+    stored_config = st.session_state.get("simulation_config")
+    config_changed = stored_config is not None and stored_config != config
+
+    run_requested = st.button("Run simulation", type="primary")
+    should_run = run_requested or stored_result is None
+
+    if should_run:
+        result = _run_simulation(
+            graph_data,
+            costs=costs,
+            friendly_names=friendly_names,
+            categories=categories,
+            config=config,
+        )
+    else:
+        result = stored_result
+
+    if config_changed and not should_run:
+        st.info("Simulation inputs changed. Click 'Run simulation' to refresh results.")
+
+    if result is None:
+        st.info("Run the simulation to view results.")
+        return
 
     _render_category_mix(result)
     _render_timeline(result)
@@ -117,9 +134,9 @@ def _ensure_simulation_defaults() -> None:
     st.session_state.setdefault("simulation_project_pips", [1, 1, 1])
 
 
-def _render_simulation_controls() -> None:
+def _render_simulation_controls() -> SimulationConfig:
     st.subheader("Simulation inputs")
-    st.caption("Adjust slots and pips; results update automatically.")
+    st.caption("Adjust slots and pips, then run the simulation to refresh results.")
 
     project_slots = st.slider(
         "Project slots", 1, 3, value=st.session_state.simulation_project_slots
@@ -149,6 +166,8 @@ def _render_simulation_controls() -> None:
         project_pips.append(0)
     st.session_state.simulation_project_pips = project_pips
 
+    return _build_simulation_config()
+
 
 def _build_simulation_config() -> SimulationConfig:
     tech_slots = tuple(
@@ -169,6 +188,26 @@ def _build_simulation_config() -> SimulationConfig:
         tech_slots=tech_slots,
         project_slots=project_slots,
     )
+
+
+def _run_simulation(
+    graph_data,
+    *,
+    costs,
+    friendly_names,
+    categories,
+    config: SimulationConfig,
+):
+    result = simulate_research(
+        graph_data,
+        costs=costs,
+        friendly_names=friendly_names,
+        categories=categories,
+        config=config,
+    )
+    st.session_state.simulation_result = result
+    st.session_state.simulation_config = config
+    return result
 
 
 def _render_category_mix(result):
