@@ -187,13 +187,15 @@ def _read_backlog_storage() -> dict | None:
 
 
 def _write_backlog_storage(payload: dict) -> dict | None:
-    encoded = json.dumps(payload)
+    encoded = json.dumps(payload, sort_keys=True)
     return _storage_component(
         f"""
         (() => {{
             const sendValue = (value) => window.parent.postMessage({{type: "streamlit:setComponentValue", value}}, "*");
             try {{
-                window.localStorage.setItem("{STORAGE_KEY}", {encoded});
+                const payload = {encoded};
+                const serialized = JSON.stringify(payload);
+                window.localStorage.setItem("{STORAGE_KEY}", serialized);
                 sendValue({{ ok: true }});
             }} catch (err) {{
                 sendValue({{ ok: false, error: String(err) }});
