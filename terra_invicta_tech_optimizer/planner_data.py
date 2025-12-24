@@ -237,6 +237,29 @@ class BacklogState:
     members: frozenset[int] = frozenset()
 
 
+def explode_backlog(
+    graph: GraphData, backlog_order: Iterable[int], completed: set[int]
+) -> tuple[int, ...]:
+    seen: dict[int, bool] = {}
+    ordered: list[int] = []
+
+    def visit(index: int) -> None:
+        if index in seen:
+            return
+        researched = index in completed
+        seen[index] = researched
+        if not researched:
+            for prereq in graph.prereqs[index]:
+                visit(prereq)
+        ordered.append(index)
+
+    for index in backlog_order:
+        if 0 <= index < graph.size:
+            visit(index)
+
+    return tuple(ordered)
+
+
 def backlog_add(backlog: BacklogState, index: int) -> BacklogState:
     if index in backlog.members:
         return backlog

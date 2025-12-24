@@ -8,6 +8,7 @@ from terra_invicta_tech_optimizer.streamlit_app.state import ensure_state
 from terra_invicta_tech_optimizer.streamlit_app.storage import hydrate_backlog_from_storage
 from terra_invicta_tech_optimizer.streamlit_app.ui.results_page import (
     ensure_simulation_defaults,
+    render_backlog_dataframes,
     render_category_mix,
     render_simulation_controls,
     render_timeline,
@@ -126,6 +127,7 @@ def main():
         st.info("Run the simulation to view results.")
         return
 
+    render_backlog_dataframes(graph_data, flat_list=flat_list)
     render_category_mix(result)
     render_timeline(result)
 

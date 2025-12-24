@@ -8,6 +8,7 @@ from terra_invicta_tech_optimizer import (
     NodeType,
     SimulationConfig,
     SimulationSlotConfig,
+    explode_backlog,
     simulate_research,
 )
 
@@ -99,6 +100,43 @@ def run_simulation(graph_data, *, costs, friendly_names, categories, config: Sim
     st.session_state.simulation_result = result
     st.session_state.simulation_config = config
     return result
+
+
+def _build_backlog_dataframe(flat_list, order: tuple[int, ...], completed: set[int]) -> pd.DataFrame:
+    rows = []
+    for position, index in enumerate(order, start=1):
+        row = flat_list.rows[index]
+        rows.append(
+            {
+                "Order": position,
+                "Name": row.friendly_name,
+                "Type": row.node_type.value,
+                "Category": row.category or "Uncategorized",
+                "Researched": index in completed,
+                "Node ID": row.node_id,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def render_backlog_dataframes(graph_data, *, flat_list) -> None:
+    st.subheader("Backlog details")
+    backlog_state = st.session_state.backlog_state
+    if not backlog_state.order:
+        st.caption("No backlog items yet.")
+        return
+
+    completed = set(st.session_state.completed)
+    backlog_df = _build_backlog_dataframe(flat_list, backlog_state.order, completed)
+    st.markdown("**Backlog order**")
+    st.dataframe(backlog_df, use_container_width=True, hide_index=True)
+
+    exploded_order = explode_backlog(
+        graph_data, backlog_state.order, completed
+    )
+    exploded_df = _build_backlog_dataframe(flat_list, exploded_order, completed)
+    st.markdown("**Exploded backlog (with prerequisites)**")
+    st.dataframe(exploded_df, use_container_width=True, hide_index=True)
 
 
 def render_category_mix(result) -> None:
