@@ -18,3 +18,9 @@ dependencies = [
 dev = [
     "debugpy>=1.8.19",
 ]
+
+[tool.coverage.run]
+omit = [
+    "terra_invicta_tech_optimizer/streamlit_app/*",
+    "terra_invicta_tech_optimizer/streamlit_app/ui/*",
+]

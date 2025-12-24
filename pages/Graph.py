@@ -2,20 +2,21 @@ from __future__ import annotations
 
 import streamlit as st
 
-from main import (
-    INPUT_DIR,
-    ensure_state,
-    get_models,
+from terra_invicta_tech_optimizer.streamlit_app.config import INPUT_DIR
+from terra_invicta_tech_optimizer.streamlit_app.data import (
     get_explorer,
-    hydrate_backlog_from_storage,
+    get_models,
     load_inputs,
-    persist_backlog_storage,
+    validate_graph,
+)
+from terra_invicta_tech_optimizer.streamlit_app.state import ensure_state
+from terra_invicta_tech_optimizer.streamlit_app.storage import hydrate_backlog_from_storage
+from terra_invicta_tech_optimizer.streamlit_app.ui.graph_page import (
     render_backlog,
     render_completion,
     render_filters,
     render_graph,
-    render_validation,
-    validate_graph,
+    render_validation_summary,
 )
 
 
@@ -67,7 +68,7 @@ def main():
     hydrate_backlog_from_storage(graph_data)
 
     validation_result = validate_graph(load_report.nodes)
-    render_validation(validation_result)
+    render_validation_summary(validation_result)
     if validation_result.has_errors:
         st.stop()
 
