@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import streamlit as st
 
 from terra_invicta_tech_optimizer import BacklogState, GraphData, ListFilters, backlog_add, backlog_remove
@@ -93,6 +95,18 @@ def apply_backlog_addition(node_index: int | None) -> None:
     st.session_state.backlog_state = backlog_add(
         st.session_state.backlog_state, node_index
     )
+    _persist_after_mutation()
+
+
+def apply_backlog_additions(node_indices: Iterable[int]) -> None:
+    if not node_indices:
+        return
+    backlog_state: BacklogState = st.session_state.backlog_state
+    for node_index in node_indices:
+        if node_index is None:
+            continue
+        backlog_state = backlog_add(backlog_state, node_index)
+    st.session_state.backlog_state = backlog_state
     _persist_after_mutation()
 
 

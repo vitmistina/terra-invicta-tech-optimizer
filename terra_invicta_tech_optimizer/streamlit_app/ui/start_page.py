@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
-from html import escape as html_escape
 
+import pandas as pd
 import streamlit as st
 from st_keyup import st_keyup
 
 from terra_invicta_tech_optimizer import BacklogState, ListFilters, backlog_reorder, build_flat_list_view
 
 from ..data import get_models
-from ..state import apply_backlog_addition, remove_backlog_item
+from ..state import apply_backlog_additions, remove_backlog_item
 from ..storage import persist_backlog_storage
 from .shared import (
     category_icon_path,
@@ -224,50 +224,21 @@ def render_technology_list(nodes) -> None:
     total_visible = sum(len(v) for v in view.visible_by_category.values())
     st.caption(f"Showing {total_visible} items")
 
-    st.markdown(
-        """
-        <style>
-        .tech-badge {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 26px;
-          height: 26px;
-          border-radius: 6px;
-          font-weight: 700;
-          font-size: 0.8rem;
-        }
-        .tech-badge.tech {
-          background: #dbeafe;
-          border: 1px solid #3b82f6;
-          color: #1e40af;
-        }
-        .tech-badge.project {
-          background: #dcfce7;
-          border: 1px solid #16a34a;
-          color: #166534;
-        }
-        .tech-name { font-weight: 600; font-size: 0.95rem; }
-        .tech-cost {
-          text-align: right;
-          font-family: "Consolas", monospace;
-          font-size: 0.85rem;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
     for category in flat_list.categories:
         visible_indices = view.visible_by_category.get(category)
         if not visible_indices:
             continue
 
-        with st.expander(f"**{category}** ({len(visible_indices)})", expanded=True):
+        with st.expander(f"{category} ({len(visible_indices)})", expanded=True):
+            header_cols = st.columns([0.06, 0.94])
+            icon_path = category_icon_path(category)
+            if icon_path:
+                header_cols[0].image(str(icon_path), width=24)
+            header_cols[1].markdown(f"**{category}**")
+
+            rows = []
             for idx in visible_indices:
                 row = flat_list.rows[idx]
-                cost_text = format_cost(row.cost)
-
                 status_parts = []
                 if idx in backlog_state.members:
                     status_parts.append("📋")
@@ -275,37 +246,49 @@ def render_technology_list(nodes) -> None:
                     status_parts.append("✓")
                 status_text = " ".join(status_parts)
 
-                in_backlog = idx in backlog_state.members
-                badge_text = "T" if row.node_type.value == "tech" else "P"
-                badge_kind = "tech" if row.node_type.value == "tech" else "project"
-
-                row_cols = st.columns([0.06, 0.5, 0.15, 0.08, 0.1])
-
-                icon_path = category_icon_path(row.category)
-                if icon_path:
-                    row_cols[0].image(str(icon_path), width=24)
-                else:
-                    row_cols[0].markdown(
-                        f"<span class='tech-badge {badge_kind}'>{badge_text}</span>",
-                        unsafe_allow_html=True,
-                    )
-
-                row_cols[1].markdown(
-                    f"<div class='tech-name'>{html_escape(row.friendly_name)}</div>",
-                    unsafe_allow_html=True,
+                rows.append(
+                    {
+                        "Select": False,
+                        "Friendly Name": row.friendly_name,
+                        "Type": row.node_type.value.title(),
+                        "Cost": format_cost(row.cost),
+                        "Status": status_text,
+                        "_index": idx,
+                    }
                 )
-                row_cols[2].markdown(
-                    f"<div class='tech-cost'>{cost_text}</div>",
-                    unsafe_allow_html=True,
-                )
-                row_cols[3].write(status_text)
-                row_cols[4].button(
-                    "✅" if in_backlog else "➕",
-                    key=f"list-{row.node_id}",
-                    on_click=apply_backlog_addition,
-                    args=(idx,),
-                    disabled=in_backlog,
-                )
+
+            table = pd.DataFrame(rows).set_index("_index")
+            editor_key = f"category-editor-{category}"
+            edited_table = st.data_editor(
+                table,
+                key=editor_key,
+                hide_index=True,
+                disabled=("Friendly Name", "Type", "Cost", "Status"),
+                column_config={
+                    "Select": st.column_config.CheckboxColumn(required=False),
+                    "Friendly Name": st.column_config.TextColumn(width="large"),
+                    "Type": st.column_config.TextColumn(width="small"),
+                    "Cost": st.column_config.TextColumn(width="small"),
+                    "Status": st.column_config.TextColumn(width="small"),
+                },
+                width="stretch",
+            )
+
+            selected_indices = [
+                int(idx)
+                for idx, row in edited_table.iterrows()
+                if row.get("Select")
+            ]
+            if st.button(
+                "Add selected to backlog",
+                key=f"category-add-{category}",
+                disabled=not selected_indices,
+                width="stretch",
+            ):
+                apply_backlog_additions(selected_indices)
+                cleared = edited_table.copy()
+                cleared["Select"] = False
+                st.session_state[editor_key] = cleared
 
 
 def sync_search_from_query_params() -> None:
