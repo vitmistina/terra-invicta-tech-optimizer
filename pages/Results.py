@@ -100,7 +100,7 @@ def main():
     friendly_names = {row.index: row.friendly_name for row in flat_list.rows}
     categories = {row.index: row.category or "Uncategorized" for row in flat_list.rows}
 
-    config = render_simulation_controls()
+    config = render_simulation_controls(graph_data)
 
     stored_result = st.session_state.get("simulation_result")
     stored_config = st.session_state.get("simulation_config")
