@@ -28,6 +28,7 @@ from .planner_data import (
     build_flat_list_view,
     build_flat_node_list,
     build_graph_data,
+    explode_backlog,
 )
 from .simulation import (
     SimulationConfig,
@@ -61,6 +62,7 @@ __all__ = [
     "build_graph_data",
     "build_flat_node_list",
     "build_flat_list_view",
+    "explode_backlog",
     "backlog_add",
     "backlog_remove",
     "backlog_reorder",

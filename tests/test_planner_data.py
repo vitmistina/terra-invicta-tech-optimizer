@@ -9,6 +9,7 @@ from terra_invicta_tech_optimizer import (
     build_flat_list_view,
     build_flat_node_list,
     build_graph_data,
+    explode_backlog,
 )
 
 
@@ -114,6 +115,40 @@ def test_backlog_state_operations_are_minimal_and_correct():
     state = backlog_reorder(state, [4, 3, 999, 1])
     assert state.order == (4, 3, 1)
     assert state.members == frozenset({1, 3, 4})
+
+
+def test_explode_backlog_expands_prereqs_and_dedupes():
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+
+    backlog_order = (
+        graph.id_to_index["TechB"],
+        graph.id_to_index["Proj1"],
+    )
+    exploded = explode_backlog(graph, backlog_order, completed=set())
+
+    expected = (
+        graph.id_to_index["TechA"],
+        graph.id_to_index["TechB"],
+        graph.id_to_index["Proj1"],
+    )
+    assert exploded == expected
+
+
+def test_explode_backlog_skips_researched_prereqs():
+    nodes = sample_nodes()
+    graph = build_graph_data(nodes)
+
+    backlog_order = (graph.id_to_index["Proj1"],)
+    completed = {graph.id_to_index["TechB"]}
+
+    exploded = explode_backlog(graph, backlog_order, completed=completed)
+
+    expected = (
+        graph.id_to_index["TechB"],
+        graph.id_to_index["Proj1"],
+    )
+    assert exploded == expected
 
 
 def test_search_query_filters_by_friendly_name_only():
