@@ -6,11 +6,14 @@ import pandas as pd
 import streamlit as st
 from st_keyup import st_keyup
 
-from terra_invicta_tech_optimizer import BacklogState, ListFilters, backlog_reorder, build_flat_list_view
+from terra_invicta_tech_optimizer import BacklogState, ListFilters, build_flat_list_view
 
 from ..data import get_models
-from ..state import apply_backlog_additions, remove_backlog_item
-from ..storage import persist_backlog_storage
+from ..state import (
+    apply_backlog_additions,
+    apply_backlog_reorder,
+    remove_backlog_item,
+)
 from .shared import (
     category_icon_path,
     format_cost,
@@ -18,18 +21,6 @@ from .shared import (
     parse_backlog_order,
     render_sortable_backlog_panel,
 )
-
-
-def _persist_after_mutation() -> None:
-    models = st.session_state.get("models")
-    if not models:
-        return
-    graph_data = models.get("graph_data")
-    if graph_data is None:
-        return
-
-    st.session_state.backlog_storage_dirty = True
-    persist_backlog_storage(graph_data)
 
 
 def update_search_filter(value: str) -> None:
@@ -138,12 +129,11 @@ def render_backlog_container(nodes) -> None:
             )
             new_order = parse_backlog_order(order_value, backlog)
             if new_order is not None and new_order != backlog.order:
-                st.session_state.backlog_state = backlog_reorder(backlog, new_order)
+                apply_backlog_reorder(new_order)
                 backlog = st.session_state.backlog_state
                 st.session_state.backlog_order = json.dumps(
                     [str(idx) for idx in backlog.order]
                 )
-                _persist_after_mutation()
 
             render_sortable_backlog_panel(backlog, flat_list=flat_list)
 
