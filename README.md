@@ -16,7 +16,7 @@ The app opens on the **Start here** page, which provides:
 - Category and completion filters that can either hide or de-emphasize list items.
 - A **sticky backlog panel** that stays visible at the top as you scroll through the technology list.
 - A drag-and-drop backlog queue with a "Calculate optimal path" button that opens the Results page.
-- A combined tech and project list grouped by category, ordered by cost or friendly name, with click-to-add backlog entries.
+- A combined tech and project list grouped by category, ordered by cost or friendly name, presented in per-category tables with row selection and an Add to backlog action.
 - Theme-safe styling that maintains readability in both Streamlit light and dark themes.
 
 Additional pages:
