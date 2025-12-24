@@ -19,7 +19,7 @@ def ensure_simulation_defaults() -> None:
     st.session_state.setdefault("simulation_project_pips", [1, 1, 1])
 
 
-def render_simulation_controls() -> SimulationConfig:
+def render_simulation_controls(graph_data) -> SimulationConfig:
     st.subheader("Simulation inputs")
     st.caption("Adjust slots and pips, then run the simulation to refresh results.")
 
@@ -57,10 +57,10 @@ def render_simulation_controls() -> SimulationConfig:
         project_pips.append(0)
     st.session_state.simulation_project_pips = project_pips
 
-    return build_simulation_config()
+    return build_simulation_config(graph_data)
 
 
-def build_simulation_config() -> SimulationConfig:
+def build_simulation_config(graph_data) -> SimulationConfig:
     tech_slots = tuple(
         SimulationSlotConfig(
             name=f"Tech {idx + 1}", node_type=NodeType.TECH, pips=pips
@@ -80,9 +80,12 @@ def build_simulation_config() -> SimulationConfig:
 
     backlog_state = st.session_state.backlog_state
     completed = frozenset(st.session_state.completed)
+    exploded_backlog = explode_backlog(
+        graph_data, backlog_state.order, set(completed)
+    )
 
     return SimulationConfig(
-        backlog_order=backlog_state.order,
+        backlog_order=exploded_backlog,
         completed=completed,
         tech_slots=tech_slots,
         project_slots=project_slots,
