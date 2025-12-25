@@ -44,14 +44,25 @@ def _read_backlog_storage() -> tuple[dict | None, str | None]:
     return None, f"Unexpected local storage payload type: {type(raw).__name__}"
 
 
-def _write_backlog_storage(payload: dict) -> str | None:
-    encoded = json.dumps(payload, sort_keys=True)
-    storage = _get_local_storage()
-    try:
-        storage.setItem(STORAGE_KEY, encoded)
-    except Exception as exc:  # pragma: no cover - defensive for component failures.
-        return str(exc)
-    return None
+def _write_backlog_storage(payload: dict) -> None:
+    payload_json = json.dumps(payload)
+    st.components.v1.html(
+        f"""
+        <script>
+        (() => {{
+          try {{
+            const payload = {payload_json};
+            const root = window.parent ?? window;
+            root.localStorage.setItem("{STORAGE_KEY}", JSON.stringify(payload));
+          }} catch (err) {{
+            console.warn("Failed to persist backlog to localStorage", err);
+          }}
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 def hydrate_backlog_from_storage(graph_data: GraphData) -> DecodedBacklog | None:
@@ -81,25 +92,24 @@ def hydrate_backlog_from_storage(graph_data: GraphData) -> DecodedBacklog | None
     return decoded
 
 
-def persist_backlog_storage(graph_data: GraphData) -> None:
-    if not st.session_state.get("backlog_storage_dirty", False):
+def persist_backlog_storage(graph_data: GraphData, *, force: bool = False) -> None:
+    if not force and not st.session_state.get("backlog_storage_dirty", False):
         return None
 
     backlog_state: BacklogState = st.session_state.backlog_state
-    if st.session_state.get("backlog_storage_last_order") == backlog_state.order:
+    if not force and st.session_state.get("backlog_storage_last_order") == backlog_state.order:
         st.session_state.backlog_storage_dirty = False
         return None
 
     payload = encode_backlog(graph_data, backlog_state)
     serialized = json.dumps(payload, sort_keys=True)
-    if st.session_state.get("backlog_storage_last") == serialized:
+    if not force and st.session_state.get("backlog_storage_last") == serialized:
         st.session_state.backlog_storage_dirty = False
         return None
 
     st.session_state.backlog_storage_last = serialized
     st.session_state.backlog_storage_last_order = backlog_state.order
     st.session_state.backlog_storage_dirty = False
-    error = _write_backlog_storage(payload)
-    if error:
-        st.session_state.backlog_storage_write_error = error
+    _write_backlog_storage(payload)
+    st.session_state.backlog_storage_write_error = None
     return None

@@ -6,11 +6,15 @@ import pandas as pd
 import streamlit as st
 from st_keyup import st_keyup
 
-from terra_invicta_tech_optimizer import BacklogState, ListFilters, backlog_reorder, build_flat_list_view
+from terra_invicta_tech_optimizer import BacklogState, ListFilters, build_flat_list_view
 
 from ..data import get_models
-from ..state import apply_backlog_additions, remove_backlog_item
-from ..storage import persist_backlog_storage
+from ..state import (
+    apply_backlog_additions,
+    apply_backlog_reorder,
+    persist_backlog_now,
+    remove_backlog_item,
+)
 from .shared import (
     category_icon_path,
     format_cost,
@@ -20,16 +24,23 @@ from .shared import (
 )
 
 
-def _persist_after_mutation() -> None:
-    models = st.session_state.get("models")
-    if not models:
-        return
-    graph_data = models.get("graph_data")
-    if graph_data is None:
-        return
+def _should_clear_editor(editor_key: str) -> bool:
+    clear_keys = st.session_state.get("clear_category_editors", set())
+    if editor_key not in clear_keys:
+        return False
+    clear_keys = set(clear_keys)
+    clear_keys.discard(editor_key)
+    st.session_state.clear_category_editors = clear_keys
+    return True
 
-    st.session_state.backlog_storage_dirty = True
-    persist_backlog_storage(graph_data)
+
+def _apply_additions_and_clear(selected_indices: list[int], editor_key: str) -> None:
+    if not selected_indices:
+        return
+    apply_backlog_additions(selected_indices)
+    clear_keys = set(st.session_state.get("clear_category_editors", set()))
+    clear_keys.add(editor_key)
+    st.session_state.clear_category_editors = clear_keys
 
 
 def update_search_filter(value: str) -> None:
@@ -138,12 +149,11 @@ def render_backlog_container(nodes) -> None:
             )
             new_order = parse_backlog_order(order_value, backlog)
             if new_order is not None and new_order != backlog.order:
-                st.session_state.backlog_state = backlog_reorder(backlog, new_order)
+                apply_backlog_reorder(new_order)
                 backlog = st.session_state.backlog_state
                 st.session_state.backlog_order = json.dumps(
                     [str(idx) for idx in backlog.order]
                 )
-                _persist_after_mutation()
 
             render_sortable_backlog_panel(backlog, flat_list=flat_list)
 
@@ -169,6 +179,13 @@ def render_backlog_container(nodes) -> None:
                     key="backlog_remove_btn",
                     help="Remove selected item",
                 )
+            st.button(
+                "💾 Save backlog",
+                on_click=persist_backlog_now,
+                use_container_width=True,
+                key="backlog_save_btn",
+                help="Persist backlog order to browser storage.",
+            )
 
         st.divider()
 
@@ -259,6 +276,8 @@ def render_technology_list(nodes) -> None:
 
             table = pd.DataFrame(rows).set_index("_index")
             editor_key = f"category-editor-{category}"
+            if _should_clear_editor(editor_key):
+                st.session_state[editor_key] = table.assign(Select=False)
             edited_table = st.data_editor(
                 table,
                 key=editor_key,
@@ -279,16 +298,14 @@ def render_technology_list(nodes) -> None:
                 for idx, row in edited_table.iterrows()
                 if row.get("Select")
             ]
-            if st.button(
+            st.button(
                 "Add selected to backlog",
                 key=f"category-add-{category}",
                 disabled=not selected_indices,
                 width="stretch",
-            ):
-                apply_backlog_additions(selected_indices)
-                cleared = edited_table.copy()
-                cleared["Select"] = False
-                st.session_state[editor_key] = cleared
+                on_click=_apply_additions_and_clear,
+                args=(selected_indices, editor_key),
+            )
 
 
 def sync_search_from_query_params() -> None:

@@ -5,12 +5,17 @@ from dataclasses import asdict
 
 import streamlit as st
 
-from terra_invicta_tech_optimizer import GraphFilters, ListFilters, backlog_reorder
+from terra_invicta_tech_optimizer import GraphFilters, ListFilters
 
 from ..data import get_models
 from ..graphviz import build_graphviz
-from ..state import apply_backlog_addition, remove_backlog_item, reset_filters
-from ..storage import persist_backlog_storage
+from ..state import (
+    apply_backlog_addition,
+    apply_backlog_reorder,
+    persist_backlog_now,
+    remove_backlog_item,
+    reset_filters,
+)
 from .shared import (
     friendly_name,
     label_for_index,
@@ -19,18 +24,6 @@ from .shared import (
     render_sortable_backlog_compact,
     render_validation,
 )
-
-
-def _persist_after_mutation() -> None:
-    models = st.session_state.get("models")
-    if not models:
-        return
-    graph_data = models.get("graph_data")
-    if graph_data is None:
-        return
-
-    st.session_state.backlog_storage_dirty = True
-    persist_backlog_storage(graph_data)
 
 
 def render_filters(nodes) -> None:
@@ -99,12 +92,19 @@ def render_backlog(nodes) -> None:
     )
     new_order = parse_backlog_order(order_value, backlog)
     if new_order is not None and new_order != backlog.order:
-        st.session_state.backlog_state = backlog_reorder(backlog, new_order)
+        apply_backlog_reorder(new_order)
         backlog = st.session_state.backlog_state
         st.session_state.backlog_order = json.dumps([str(idx) for idx in backlog.order])
-        _persist_after_mutation()
 
     render_sortable_backlog_compact(backlog, flat_list=flat_list)
+
+    st.button(
+        "💾 Save backlog",
+        on_click=persist_backlog_now,
+        width="stretch",
+        key="graph_backlog_save_btn",
+        help="Persist backlog order to browser storage.",
+    )
 
     remove_map: dict[str, int] = {}
     for idx in backlog.order:

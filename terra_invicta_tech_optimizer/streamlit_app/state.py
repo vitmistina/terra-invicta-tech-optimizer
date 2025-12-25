@@ -4,7 +4,14 @@ from collections.abc import Iterable
 
 import streamlit as st
 
-from terra_invicta_tech_optimizer import BacklogState, GraphData, ListFilters, backlog_add, backlog_remove
+from terra_invicta_tech_optimizer import (
+    BacklogState,
+    GraphData,
+    ListFilters,
+    backlog_add,
+    backlog_remove,
+    backlog_reorder,
+)
 
 from .storage import persist_backlog_storage
 
@@ -89,6 +96,18 @@ def _persist_after_mutation() -> None:
     persist_backlog_storage(graph_data)
 
 
+def persist_backlog_now() -> None:
+    models = st.session_state.get("models")
+    if not models:
+        return
+    graph_data: GraphData | None = models.get("graph_data")
+    if graph_data is None:
+        return
+
+    st.session_state.backlog_storage_dirty = True
+    persist_backlog_storage(graph_data, force=True)
+
+
 def apply_backlog_addition(node_index: int | None) -> None:
     if node_index is None:
         return
@@ -115,5 +134,12 @@ def remove_backlog_item(node_index: int | None) -> None:
         return
     st.session_state.backlog_state = backlog_remove(
         st.session_state.backlog_state, node_index
+    )
+    _persist_after_mutation()
+
+
+def apply_backlog_reorder(new_order: Iterable[int]) -> None:
+    st.session_state.backlog_state = backlog_reorder(
+        st.session_state.backlog_state, new_order
     )
     _persist_after_mutation()
