@@ -91,18 +91,18 @@ def hydrate_backlog_from_storage(graph_data: GraphData) -> DecodedBacklog | None
     return decoded
 
 
-def persist_backlog_storage(graph_data: GraphData) -> None:
-    if not st.session_state.get("backlog_storage_dirty", False):
+def persist_backlog_storage(graph_data: GraphData, *, force: bool = False) -> None:
+    if not force and not st.session_state.get("backlog_storage_dirty", False):
         return None
 
     backlog_state: BacklogState = st.session_state.backlog_state
-    if st.session_state.get("backlog_storage_last_order") == backlog_state.order:
+    if not force and st.session_state.get("backlog_storage_last_order") == backlog_state.order:
         st.session_state.backlog_storage_dirty = False
         return None
 
     payload = encode_backlog(graph_data, backlog_state)
     serialized = json.dumps(payload, sort_keys=True)
-    if st.session_state.get("backlog_storage_last") == serialized:
+    if not force and st.session_state.get("backlog_storage_last") == serialized:
         st.session_state.backlog_storage_dirty = False
         return None
 

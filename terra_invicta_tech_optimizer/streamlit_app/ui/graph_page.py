@@ -12,6 +12,7 @@ from ..graphviz import build_graphviz
 from ..state import (
     apply_backlog_addition,
     apply_backlog_reorder,
+    persist_backlog_now,
     remove_backlog_item,
     reset_filters,
 )
@@ -96,6 +97,14 @@ def render_backlog(nodes) -> None:
         st.session_state.backlog_order = json.dumps([str(idx) for idx in backlog.order])
 
     render_sortable_backlog_compact(backlog, flat_list=flat_list)
+
+    st.button(
+        "💾 Save backlog",
+        on_click=persist_backlog_now,
+        width="stretch",
+        key="graph_backlog_save_btn",
+        help="Persist backlog order to browser storage.",
+    )
 
     remove_map: dict[str, int] = {}
     for idx in backlog.order:

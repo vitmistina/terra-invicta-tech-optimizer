@@ -96,6 +96,18 @@ def _persist_after_mutation() -> None:
     persist_backlog_storage(graph_data)
 
 
+def persist_backlog_now() -> None:
+    models = st.session_state.get("models")
+    if not models:
+        return
+    graph_data: GraphData | None = models.get("graph_data")
+    if graph_data is None:
+        return
+
+    st.session_state.backlog_storage_dirty = True
+    persist_backlog_storage(graph_data, force=True)
+
+
 def apply_backlog_addition(node_index: int | None) -> None:
     if node_index is None:
         return
