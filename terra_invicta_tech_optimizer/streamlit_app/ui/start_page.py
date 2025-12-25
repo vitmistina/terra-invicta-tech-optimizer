@@ -24,23 +24,15 @@ from .shared import (
 )
 
 
-def _should_clear_editor(editor_key: str) -> bool:
-    clear_keys = st.session_state.get("clear_category_editors", set())
-    if editor_key not in clear_keys:
-        return False
-    clear_keys = set(clear_keys)
-    clear_keys.discard(editor_key)
-    st.session_state.clear_category_editors = clear_keys
-    return True
-
-
-def _apply_additions_and_clear(selected_indices: list[int], editor_key: str) -> None:
+def _apply_additions_and_reset(
+    selected_indices: list[int], editor_version_key: str
+) -> None:
     if not selected_indices:
         return
     apply_backlog_additions(selected_indices)
-    clear_keys = set(st.session_state.get("clear_category_editors", set()))
-    clear_keys.add(editor_key)
-    st.session_state.clear_category_editors = clear_keys
+    st.session_state[editor_version_key] = (
+        st.session_state.get(editor_version_key, 0) + 1
+    )
 
 
 def update_search_filter(value: str) -> None:
@@ -276,11 +268,12 @@ def render_technology_list(nodes) -> None:
 
             table = pd.DataFrame(rows).set_index("_index")
             editor_key = f"category-editor-{category}"
-            if _should_clear_editor(editor_key):
-                st.session_state[editor_key] = table.assign(Select=False)
+            editor_version_key = f"{editor_key}-version"
+            editor_version = st.session_state.get(editor_version_key, 0)
+            editor_widget_key = f"{editor_key}-{editor_version}"
             edited_table = st.data_editor(
                 table,
-                key=editor_key,
+                key=editor_widget_key,
                 hide_index=True,
                 disabled=("Friendly Name", "Type", "Cost", "Status"),
                 column_config={
@@ -303,8 +296,8 @@ def render_technology_list(nodes) -> None:
                 key=f"category-add-{category}",
                 disabled=not selected_indices,
                 width="stretch",
-                on_click=_apply_additions_and_clear,
-                args=(selected_indices, editor_key),
+                on_click=_apply_additions_and_reset,
+                args=(selected_indices, editor_version_key),
             )
 
 
