@@ -52,7 +52,8 @@ def _write_backlog_storage(payload: dict) -> None:
         (() => {{
           try {{
             const payload = {payload_json};
-            window.localStorage.setItem("{STORAGE_KEY}", JSON.stringify(payload));
+            const root = window.parent ?? window;
+            root.localStorage.setItem("{STORAGE_KEY}", JSON.stringify(payload));
           }} catch (err) {{
             console.warn("Failed to persist backlog to localStorage", err);
           }}
